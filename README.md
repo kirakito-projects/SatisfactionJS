@@ -9,6 +9,9 @@
 ```html
 <script type="text/javascript" src="/satisfaction.js"></script>
 ```
+## Links
+- Demo project: https://github.com/ProCompTEAM/satisfaction-demo
+
 ## Usage
 
 To initialize the `sf` library and ensure correct routing, use the following code in your HTML file:
