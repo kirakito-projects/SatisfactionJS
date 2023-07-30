@@ -7,7 +7,7 @@
     DEPARTMENT -> GENERAL CONSTANTS
 */
 
-const SF_PUBLIC_VERSION = "1.0.0";
+const SF_PUBLIC_VERSION = "1.0.1";
 
 /*
     DEPARTMENT -> COMMON VARIABLES
@@ -456,15 +456,14 @@ function sf_model_track_properties(targetElement, model) {
  * @return {void}
  */
 function sf_model_find_properties(targetElement) {
-    const regex = /{{\s*[\w\.]+\s*}}/g;
-
-    if(targetElement.nodeType === Node.TEXT_NODE && regex.test(targetElement.nodeValue)) {
+    if(targetElement.nodeType === Node.TEXT_NODE && targetElement.nodeValue.includes('{{') && targetElement.nodeValue.includes('}}')) {
         targetElement.parentElement.setAttribute('sf-model-content-template', targetElement.nodeValue);
     }
     
     if (targetElement.attributes) {
         Array.from(targetElement.attributes)
-            .filter(attribute => regex.test(attribute.value))
+            .filter(attribute => attribute.name !== 'bind' && attribute.name !== 'command'
+                && attribute.value.includes('{{') && attribute.value.includes('}}'))
             .forEach(attribute => targetElement.setAttribute(`sf-model-template:${attribute.name}`, attribute.value));
     }
 
