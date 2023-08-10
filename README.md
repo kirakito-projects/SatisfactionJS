@@ -44,6 +44,7 @@ To set up components, use the following code in your HTML file:
 ```
 The `navigation-switch` attribute sets the parent container as the component switcher. The component that was navigated to is displayed.
 Multiple components in different places in your application are allowed. Components with the `default` attribute are loaded automatically.
+The `name` attribute is optional.
 
 ## Component Implementation - simplified approach
 
