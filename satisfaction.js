@@ -1,19 +1,20 @@
 /*
     Satisfaction - Simple MVVM Javascript Framework for different web apps.
-    Copyright © 2023 Kirill Poroh & Team. Public version. MIT License.
+    Copyright © 2023 Kirill Poroh & Co. Public version. MIT License.
 */
 
 /*
     DEPARTMENT -> GENERAL CONSTANTS
 */
 
-const SF_PUBLIC_VERSION = "1.0.1";
+const SF_PUBLIC_VERSION = "1.1.0";
 
 /*
     DEPARTMENT -> COMMON VARIABLES
 */
 
 var sf_component_javascript_allowed = true;
+var sf_component_style_add_new_class = true;
 var sf_component_loading_indicator = null;
 var sf_component_templates = new Object();
 var sf_component_last_set = null;
@@ -22,9 +23,11 @@ var sf_component_navigation_name_set = null;
 var sf_routing_allowed = false;
 var sf_routing_path_template = null;
 
-var sf_model_multiplier_allow_default_functions = true;
+var sf_model_multiplier_default_functions_allowed = true;
 
-var sf_point_shared = new Object();
+var sf_point_shared_objects = new Object();
+
+var sf_states = new Object();
 
 /*
     DEPARTMENT -> FRAMEWORK DEFAULTS
@@ -70,11 +73,31 @@ function sf_component_setup() {
  */
 function sf_component_load_default(targetElement) {
     const components = targetElement.querySelectorAll("component[default]");
+
+    sf_component_claim_anonymous(components);
     
     if(components && components.length > 0) {
         const componentNames = Array.from(components).map(component => component.getAttribute("name"));
         sf_component_load(componentNames);
     }
+}
+
+/**
+ * Claims anonymous components by assigning them a unique name based on their source path and static key.
+ * @param {NodeList} componentElements - A NodeList of component elements to claim as anonymous.
+ * @return {void}
+ */
+function sf_component_claim_anonymous(componentElements) {
+    componentElements.forEach(componentElement => {
+        if(!componentElement.hasAttribute('name')) {
+            const sourcePath = componentElement.getAttribute('src');
+            const fileName = sourcePath.match(/[^\/]+(?=\.)/)[0];
+            const staticKey = sf_hash(sf_xpath_element(componentElement));
+            const newName = `${fileName}-${staticKey}`;
+            componentElement.setAttribute('name', newName);
+            componentElement.setAttribute('anonymous', '');
+        }
+    });
 }
 
 /**
@@ -194,6 +217,16 @@ function sf_component_set_defaults(componentElement) {
         sf_component_navigate(componentElement.name);
     }
 
+    componentElement.state = function(name) {
+        const componentNameKey = `component.${componentElement.name}.${name}`;
+        return sf_state_get(componentNameKey);
+    }
+
+    componentElement.setState = function(name, value = null, setLocalStorage = false) {
+        const componentNameKey = `component.${componentElement.name}.${name}`;
+        sf_state_set(componentNameKey, value, setLocalStorage);
+    }
+
     componentElement.setModel = function(model, templateName) {
         componentElement.querySelectorAll(`[template="${templateName}"]`).forEach(
             function(element) {
@@ -287,8 +320,8 @@ function sf_component_execute_js(targetElement) {
     );
 
     function sf_component_get_js_reservation() {
-        const component_reserved_variable_name = "component";
-        return `let ${component_reserved_variable_name} = ${sf_component_current.name}();\n\r`;
+        const component_reserved_const_name = "component";
+        return `const ${component_reserved_const_name} = ${sf_component_current.name}();\n\r`;
     }
 }
 
@@ -308,7 +341,11 @@ function sf_component_apply_styles(targetElement) {
 
             if (classMatches) {
                 targetElement.querySelectorAll('[class]').forEach(element => {
-                    element.className = element.className.split(' ').map(name => classMatches.includes(name) ? `${name}-${postfix}` : name).join(' ');
+                    if(sf_component_style_add_new_class) {
+                        element.className = element.className.split(' ').map(name => classMatches.includes(name) ? `${name} ${name}-${postfix}` : name).join(' ');
+                    } else {
+                        element.className = element.className.split(' ').map(name => classMatches.includes(name) ? `${name}-${postfix}` : name).join(' ');
+                    }
                 });
             }
         }
@@ -603,7 +640,7 @@ function sf_model_set_multiplier(templateElement, targetArray, display = 'block'
         const newElement = sf_model_set_multiplier_template_clone(templateElement, arrayIndex, display);
         sf_model_set_multiplier_model(newElement, model);
 
-        if(sf_model_multiplier_allow_default_functions) {
+        if(sf_model_multiplier_default_functions_allowed) {
             sf_model_set_multiplier_default_functions(model, arrayIndex);
         }
     }
@@ -670,7 +707,7 @@ function sf_model_set_multiplier_template_clone(templateElement, index, display)
  * @return {void}
  */
 function sf_model_set_multiplier_reset(targetElement) {
-    targetElement.querySelectorAll(`[sf-template-index]`).forEach(element => {
+    targetElement.parentNode.querySelectorAll(`[sf-template-index]`).forEach(element => {
         element.remove();
     });
 }
@@ -681,12 +718,12 @@ function sf_model_set_multiplier_reset(targetElement) {
 */
 
 /**
- * Retrieves a shared point object by its name from sf_point_shared variable.
+ * Retrieves a shared point object by its name from sf_point_shared_objects variable.
  * @param {string} name - The name of the shared point to retrieve.
  * @returns {Object} The shared point object with subscribe, unsubscribe, and share methods.
  */
 function sf_point_get(name) {
-    return sf_point_shared[name];
+    return sf_point_shared_objects[name];
 }
 
 /**
@@ -711,10 +748,49 @@ function sf_point_set(name = null) {
     };
 
     if(name) {
-        sf_point_shared[name] = point;
+        sf_point_shared_objects[name] = point;
     }
 
     return point;
+}
+
+
+/*
+    DEPARTMENT -> STATE MANAGER
+*/
+
+/**
+ * Gets the value of a state by name.
+ * @param {string} name - The name of the state to get.
+ * @return {*} The value of the state from localStorage if it exists, otherwise from states.
+ */
+function sf_state_get(name) {
+    return localStorage.getItem(`sf_${name}`) ?? sf_states[name];
+}
+
+/**
+ * Sets the value of a state by name.
+ * @param {string} name - The name of the state to set.
+ * @param {*} value - The value to set for the state.
+ * @param {boolean} [setLocalStorage=false] - Whether to set the value in localStorage as well.
+ * @return {void}
+ */
+function sf_state_set(name, value, setLocalStorage = false) {
+    sf_states[name] = value;
+
+    if(setLocalStorage) {
+        localStorage.setItem(`sf_${name}`, value);
+    }
+}
+
+/**
+ * Unsets a state by name.
+ * @param {string} name - The name of the state to unset.
+ * @return {void}
+ */
+function sf_state_unset(name) {
+    delete sf_states[name];
+    localStorage.removeItem(`sf_${name}`);
 }
 
 
@@ -748,6 +824,40 @@ function sf_sleep(milliseconds) {
  * @param {string} xpathExpression - The XPath expression to evaluate.
  * @returns {XPathResult} An XPathResult object of type ORDERED_NODE_SNAPSHOT_TYPE.
  */
-function sf_xpath(targetElement, xpathExpression) {
+function sf_xpath_find(targetElement, xpathExpression) {
     return document.evaluate(xpathExpression, targetElement, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+}
+
+/**
+ * Generates an XPath expression for a given element.
+ * @param {Element} element - The element for which to generate the XPath expression.
+ * @param {string} xpath - The initial XPath expression (optional).
+ * @returns {string} An XPath expression that uniquely identifies the given element.
+ */
+function sf_xpath_element(element, xpath = '') {
+    while (element && element.nodeType === 1) {
+        let index = 1;
+        for (let sibling = element.previousSibling; sibling; sibling = sibling.previousSibling) {
+            if (sibling.nodeType !== Node.DOCUMENT_TYPE_NODE && sibling.nodeName === element.nodeName) {
+                ++index;
+            }
+        }
+        xpath = `/${element.nodeName}[${index}]` + xpath;
+        element = element.parentNode;
+    }
+    return xpath;
+}
+
+/**
+ * Calculates a hash code for a text string.
+ * @param {string} text - The text string for which the hash code is calculated.
+ * @returns {string} The hash code as a string in base 36.
+ */
+function sf_hash(text) {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+        hash = (hash << 5) - hash + text.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return hash.toString(36);
 }
