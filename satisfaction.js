@@ -7,7 +7,7 @@
     DEPARTMENT -> GENERAL CONSTANTS
 */
 
-const SF_PUBLIC_VERSION = "1.1.0";
+const SF_PUBLIC_VERSION = "1.1.1";
 
 /*
     DEPARTMENT -> COMMON VARIABLES
@@ -497,11 +497,17 @@ function sf_model_find_properties(targetElement) {
         targetElement.parentElement.setAttribute('sf-model-content-template', targetElement.nodeValue);
     }
     
-    if (targetElement.attributes) {
+    if(targetElement.attributes) {
         Array.from(targetElement.attributes)
             .filter(attribute => attribute.name !== 'bind' && attribute.name !== 'command'
                 && attribute.value.includes('{{') && attribute.value.includes('}}'))
             .forEach(attribute => targetElement.setAttribute(`sf-model-template:${attribute.name}`, attribute.value));
+
+            if(targetElement.hasAttribute('visible')
+                && window.getComputedStyle(targetElement).getPropertyValue('display')) {
+                const displayValue = window.getComputedStyle(targetElement).getPropertyValue('display');
+                targetElement.setAttribute('sf:visibility-display', displayValue);
+            }
     }
 
     Array.from(targetElement.childNodes)
@@ -528,6 +534,10 @@ function sf_model_update_property(targetElement, bindableKey, value) {
                 if(targetAttribute === 'value') {
                     element.value = newValue;
                 }
+
+                if(targetAttribute === 'visible') {
+                    sf_model_update_visibility(element, newValue);
+                }
             });
     });
 
@@ -535,6 +545,22 @@ function sf_model_update_property(targetElement, bindableKey, value) {
         const contentTemplate = element.getAttribute('sf-model-content-template'); //fix problem with multiple {{props}} in one tag
         element.firstChild.textContent = contentTemplate.replaceAll(new RegExp(`{{${bindableKey}}}`, 'g'), value);
     });
+}
+
+/**
+ * Updates the visibility of an element on the page.
+ * @param {HTMLElement} targetElement - The element whose visibility needs to be updated
+ * @param {string} value - The value that determines whether the element should be visible or not
+ * @return {void}
+ */
+function sf_model_update_visibility(targetElement, value) {
+    if (targetElement.hasAttribute("transparent")) {
+        targetElement.style.visibility = value === 'true' ? "visible" : "hidden";
+    } else {
+        targetElement.style.display = value === 'true'
+            ? (targetElement.getAttribute('sf:visibility-display') ?? 'block')
+            : 'none';
+    }
 }
 
 /**
