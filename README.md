@@ -1,4 +1,4 @@
-# Satisfaction.JS - free to use
+# Satisfaction.JS -> easy to use
 1. **Satisfaction** allows you to connect it directly without additional tools.
 2. You can use classical and MVVM approaches. SF provides functionality for working with properties and commands.
 3. SF provides flexible page navigation and lazy loading of components, which allows you to create large applications from various components.
