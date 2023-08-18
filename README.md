@@ -3,14 +3,15 @@
 2. You can use classical and MVVM approaches. SF provides functionality for working with properties and commands. Decompose your elements on the page.
 3. SF provides flexible page navigation and lazy loading of components, which allows you to create large applications from various components.
 
+## Links
+- Demo project: https://github.com/ProCompTEAM/satisfaction-demo
+
 ## SF allows you to easily create large SPAs and other applications
 1. Download the `satisfaction.js` file from the repository.
 2. Copy and paste the following code into your HTML file:
 ```html
 <script type="text/javascript" src="/satisfaction.js"></script>
 ```
-## Links
-- Demo project: https://github.com/ProCompTEAM/satisfaction-demo
 
 ## Usage
 
