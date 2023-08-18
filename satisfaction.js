@@ -1,13 +1,14 @@
 /*
-    Satisfaction - Simple MVVM Javascript Framework for different web apps.
-    Copyright © 2023 Kirill Poroh & Co. Public version. MIT License.
+    * Satisfaction - Simple MVVM Javascript Framework for different web apps.
+    * Repository: https://github.com/ProCompTEAM/satisfaction
+    * Copyright © 2023 Kirill Poroh & Co. Public version. MIT License.
 */
 
 /*
     DEPARTMENT -> GENERAL CONSTANTS
 */
 
-const SF_PUBLIC_VERSION = "1.1.1";
+const SF_PUBLIC_VERSION = "1.1.2";
 
 /*
     DEPARTMENT -> COMMON VARIABLES
@@ -27,6 +28,7 @@ var sf_model_multiplier_default_functions_allowed = true;
 
 var sf_point_shared_objects = new Object();
 
+var sf_state_ls_prefix = 'sf_';
 var sf_states = new Object();
 
 /*
@@ -503,10 +505,10 @@ function sf_model_find_properties(targetElement) {
                 && attribute.value.includes('{{') && attribute.value.includes('}}'))
             .forEach(attribute => targetElement.setAttribute(`sf-model-template:${attribute.name}`, attribute.value));
 
-            if(targetElement.hasAttribute('visible')
+            if((targetElement.hasAttribute('visible') || targetElement.hasAttribute('invisible'))
                 && window.getComputedStyle(targetElement).getPropertyValue('display')) {
                 const displayValue = window.getComputedStyle(targetElement).getPropertyValue('display');
-                targetElement.setAttribute('sf:visibility-display', displayValue);
+                targetElement.setAttribute('sf-visibility-display', displayValue);
             }
     }
 
@@ -538,11 +540,17 @@ function sf_model_update_property(targetElement, bindableKey, value) {
                 if(targetAttribute === 'visible') {
                     sf_model_update_visibility(element, newValue);
                 }
+
+                if(targetAttribute === 'invisible') {
+                    const inversion = newValue === 'true' ? 'false' : 'true';
+                    sf_model_update_visibility(element, inversion);
+                }
             });
     });
 
     targetElement.querySelectorAll(`:not(component)[sf-model-content-template*="{{${bindableKey}}}"]`).forEach(element => {
-        const contentTemplate = element.getAttribute('sf-model-content-template'); //fix problem with multiple {{props}} in one tag
+        const contentTemplate = element.getAttribute('sf-model-content-template'); 
+        // TODO: fix problem with multiple {{props}} in one tag
         element.firstChild.textContent = contentTemplate.replaceAll(new RegExp(`{{${bindableKey}}}`, 'g'), value);
     });
 }
@@ -558,7 +566,7 @@ function sf_model_update_visibility(targetElement, value) {
         targetElement.style.visibility = value === 'true' ? "visible" : "hidden";
     } else {
         targetElement.style.display = value === 'true'
-            ? (targetElement.getAttribute('sf:visibility-display') ?? 'block')
+            ? (targetElement.getAttribute('sf-visibility-display') ?? 'block')
             : 'none';
     }
 }
@@ -791,7 +799,7 @@ function sf_point_set(name = null) {
  * @return {*} The value of the state from localStorage if it exists, otherwise from states.
  */
 function sf_state_get(name) {
-    return localStorage.getItem(`sf_${name}`) ?? sf_states[name];
+    return localStorage.getItem(sf_state_ls_prefix + name) ?? sf_states[name];
 }
 
 /**
@@ -805,7 +813,7 @@ function sf_state_set(name, value, setLocalStorage = false) {
     sf_states[name] = value;
 
     if(setLocalStorage) {
-        localStorage.setItem(`sf_${name}`, value);
+        localStorage.setItem(sf_state_ls_prefix + name, value);
     }
 }
 
@@ -816,7 +824,7 @@ function sf_state_set(name, value, setLocalStorage = false) {
  */
 function sf_state_unset(name) {
     delete sf_states[name];
-    localStorage.removeItem(`sf_${name}`);
+    localStorage.removeItem(sf_state_ls_prefix + name);
 }
 
 
