@@ -8,7 +8,7 @@
     DEPARTMENT -> GENERAL CONSTANTS
 */
 
-const SF_PUBLIC_VERSION = "1.1.2";
+const SF_PUBLIC_VERSION = "1.1.3";
 
 /*
     DEPARTMENT -> COMMON VARIABLES
@@ -292,10 +292,10 @@ function sf_component_navigate(componentName) {
     sf_component_load([componentName]);
     
     document.body.querySelectorAll('component[name="' + componentName + '"]').forEach(
-        function(element, index, array) {
+        function(element) {
             if(element.parentElement.hasAttribute("navigation-switch")) {
                 element.parentElement.querySelectorAll('component:not([name="' + componentName + '"]').forEach(
-                    function(parentComponentElement, index, array) {
+                    function(parentComponentElement) {
                         let parentComponentName = parentComponentElement.getAttribute("name");
                         sf_component_unload(parentComponentName);
                     }
@@ -538,12 +538,16 @@ function sf_model_update_property(targetElement, bindableKey, value) {
                 }
 
                 if(targetAttribute === 'visible') {
-                    sf_model_update_visibility(element, newValue);
+                    sf_model_update_visibility(element, value);
                 }
 
                 if(targetAttribute === 'invisible') {
-                    const inversion = newValue === 'true' ? 'false' : 'true';
-                    sf_model_update_visibility(element, inversion);
+                    sf_model_update_visibility(element, !value);
+                }
+
+                if(targetAttribute === 'condition') {
+                    const conditionResult = eval(newValue);
+                    sf_model_update_visibility(element, conditionResult);
                 }
             });
     });
@@ -563,9 +567,9 @@ function sf_model_update_property(targetElement, bindableKey, value) {
  */
 function sf_model_update_visibility(targetElement, value) {
     if (targetElement.hasAttribute("transparent")) {
-        targetElement.style.visibility = value === 'true' ? "visible" : "hidden";
+        targetElement.style.visibility = value ? "visible" : "hidden";
     } else {
-        targetElement.style.display = value === 'true'
+        targetElement.style.display = value
             ? (targetElement.getAttribute('sf-visibility-display') ?? 'block')
             : 'none';
     }
