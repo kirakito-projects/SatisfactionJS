@@ -8,7 +8,7 @@
     DEPARTMENT -> GENERAL CONSTANTS
 */
 
-const SF_PUBLIC_VERSION = "1.1.3";
+const SF_PUBLIC_VERSION = "1.2.0";
 
 /*
     DEPARTMENT -> COMMON VARIABLES
@@ -31,6 +31,11 @@ var sf_point_shared_objects = new Object();
 var sf_state_ls_prefix = 'sf_';
 var sf_states = new Object();
 
+var sf_resource_allowed = true;
+var sf_resource_content = new Object();
+var sf_resource_undefined_key_value = '';
+var sf_resource_callback_after = null;
+
 /*
     DEPARTMENT -> FRAMEWORK DEFAULTS
 */
@@ -46,7 +51,11 @@ function sf_initialize(callbackSetup = null) {
         callbackSetup();
     }
 
-    sf_component_setup();
+    if(sf_resource_allowed) {
+        sf_resource_load_all(sf_component_setup);
+    } else {
+        sf_component_setup();
+    }
     
     console.log("Satisfaction initialized, v." + SF_PUBLIC_VERSION);
 }
@@ -159,6 +168,10 @@ function sf_component_load(componentNames, preloadSubcomponents = true, sharedIn
  */
 function sf_component_set(componentElement, content, sharedInputData = null) {
     return new Promise((sf_resolve) => {
+        if(sf_resource_allowed) {
+            content = sf_component_replace_resources_data(content);
+        }
+
         componentElement.innerHTML = content;
 
         sf_component_last_set = componentElement;
@@ -179,6 +192,25 @@ function sf_component_set(componentElement, content, sharedInputData = null) {
 
         sf_resolve();
     });
+}
+
+/**
+ * Replaces strings like ##Resource.Name.Key*## in content.
+ * @param {string} content - The string for replacement.
+ * @return {string} The final version of string.
+ */
+function sf_component_replace_resources_data(content) {
+    const pattern = /##Resource\.(\w+)\.([\w.]+)##/g;
+
+    let matches;
+    while ((matches = pattern.exec(content)) !== null) {
+        const dictionaryKey = matches[1];
+        const resourceKey = matches[2];
+        const replacementValue = sf_resource_get(dictionaryKey, resourceKey) ?? sf_resource_undefined_key_value;
+        content = content.replaceAll(`##Resource.${dictionaryKey}.${resourceKey}##`, replacementValue);
+    }
+
+    return content; 
 }
 
 /**
@@ -271,7 +303,7 @@ function sf_component_track_navigation(targetElement = null) {
         function(element, index, array) {
             let componentName = element.getAttribute("navigation-component-name");
             element.addEventListener("click", function () {
-                sf_component_navigate(componentName);
+                sf_component_navigate(componentName, false);
             }, false);
         }
     );
@@ -280,9 +312,10 @@ function sf_component_track_navigation(targetElement = null) {
 /**
  * Navigate to a component by name.
  * @param {string} componentName - The name of the component for navigate.
+ * @param {boolean} saveSearchParams - Whether to save search parameters in the URL or not. Default is true.
  * @return {void}
  */
-function sf_component_navigate(componentName) {
+function sf_component_navigate(componentName, saveSearchParams = true) {
     if(componentName === sf_component_navigation_name_set) {
         return;
     }
@@ -305,7 +338,7 @@ function sf_component_navigate(componentName) {
     );
 
     if(sf_routing_allowed) {
-        sf_routing_set_route_path(componentName);
+        sf_routing_set_route_path(componentName, saveSearchParams);
     }
 }
 
@@ -396,16 +429,20 @@ function sf_routing_find_default_navigation_route() {
 /**
  * Set the current route path based on the specified component name.
  * @param {string} componentName - The name of the component to set the route path for.
+ * @param {boolean} saveSearchParams - Whether to save search parameters in the URL or not. Default is true.
  * @return {void}
  */
-function sf_routing_set_route_path(componentName) {
-    document.querySelectorAll('route[navigation-component-name="' + componentName + '"]').forEach(
-        function(routeElement) {
-            const currentURL = new URL(window.location.href);
-            currentURL.pathname = routeElement.getAttribute("path");
-            window.history.pushState({}, '', currentURL.href);
+function sf_routing_set_route_path(componentName, saveSearchParams = true) {
+    document.querySelectorAll(`route[navigation-component-name="${componentName}"]`).forEach(routeElement => {
+        const currentURL = new URL(window.location.href);
+        currentURL.pathname = routeElement.getAttribute("path");
+
+        if(!saveSearchParams) {
+            currentURL.search = "";
         }
-    );
+
+        window.history.pushState({}, '', currentURL.href);
+    });
 }
 
 
@@ -661,6 +698,10 @@ function sf_model_set_multiplier(templateElement, targetArray, display = 'block'
     targetArray.synchronize = function() {
         sf_model_set_multiplier(templateElement, targetArray, display);
     }
+
+    targetArray.values = function() {
+        return targetArray.slice();
+    }
     
     targetArray.push = function(...args) {
         args.forEach((model) => {
@@ -831,6 +872,66 @@ function sf_state_unset(name) {
     localStorage.removeItem(sf_state_ls_prefix + name);
 }
 
+
+/*
+    DEPARTMENT -> RESOURCES
+*/
+
+/**
+ * Loads all resources specified in the HTML document and stores them in the common dictionary.
+ * @param {function} callback - The function to call after all resources have been loaded.
+ * @return {void}
+ */
+function sf_resource_load_all(callback) {
+    const resources = Array.from(document.querySelectorAll("resource[name]"));
+
+    if(resources.length < 1) {
+        sf_resource_allowed = false;
+    }
+
+    const promises = resources.map(element => {
+        return new Promise((resolve, reject) => {
+            const condition = element.getAttribute("condition");
+            if(condition && !eval(condition)) {
+                resolve();
+            } else {
+                const source = element.getAttribute("src");
+                const name = element.getAttribute("name");
+                const xmlHttpRequest = new XMLHttpRequest();
+                xmlHttpRequest.open('GET', source, true);
+                xmlHttpRequest.setRequestHeader("Cache-Control", "no-cache, no-store, max-age=0");
+                xmlHttpRequest.onload = function() {
+                    sf_resource_content[name] = JSON.parse(this.responseText);
+                    resolve();
+                };
+                xmlHttpRequest.onerror = function() {
+                    reject();
+                };
+                xmlHttpRequest.send();
+            }
+        });
+    });
+
+    Promise.all(promises)
+        .then(() => callback())
+        .then(() => {
+            if(sf_resource_callback_after) {
+                sf_resource_callback_after();
+            }
+        })
+        .catch(() => console.log('Some resources could not be loaded'));
+}
+
+/**
+ * Retrieves a specific resource from the common dictionary.
+ * @param {string} dictionaryNameKey - The key of the dictionary in which to look for the resource.
+ * @param {string} internalResourceKey - The key of the resource to retrieve.
+ * @param {*} defaultValue - Any value for return if value doesn't exists.
+ * @returns {string} The requested resource.
+ */
+function sf_resource_get(dictionaryNameKey, internalResourceKey, defaultValue = null) {
+    return sf_resource_content[dictionaryNameKey][internalResourceKey] ?? defaultValue;
+}
 
 /*
     DEPARTMENT -> OTHER UTILS
